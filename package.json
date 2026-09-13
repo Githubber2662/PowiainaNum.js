@@ -3,12 +3,12 @@
   "version": "0.2.30",
   "description": "A JavaScript library that handles arithmetic for numbers as large as {10,9e15,1,1,1,2}.",
   "type": "module",
-  "main": "dist/PowiainaNum.cjs.js",
+  "main": "dist/PowiainaNum.cjs",
   "module": "dist/PowiainaNum.esm.js",
   "exports": {
+    "types": "./dist/index.d.ts",
     "import": "./dist/PowiainaNum.esm.js",
-    "require": "./dist/PowiainaNum.cjs.js",
-    "types": "./dist/index.d.ts"
+    "require": "./dist/PowiainaNum.cjs"
   },
   "unpkg": "dist/PowiainaNum.min.js",
   "jsdelivr": "dist/PowiainaNum.min.js",

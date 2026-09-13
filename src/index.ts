@@ -869,30 +869,53 @@ export default class PowiainaNum implements IPowiainaNum {
   public pow(x: PowiainaNumSource): PowiainaNum {
     const other = new PowiainaNum(x);
 
-    if (this.eq(1)) return PowiainaNum.ONE;
-    if (!other.isFinite()) return other;
-    if (!this.isFinite()) return this;
+    // The guards below follow IEEE 754 pow ordering: the exponent's identity and
+    // NaN cases are settled before the base's magnitude, and the exponent's sign
+    // before the base's infinity. Order matters here -- e.g. 0^-Infinity is
+    // Infinity, Infinity^-2 is 0 and NaN^0 is 1, none of which the previous
+    // "return the exponent whenever it is not finite" shortcut produced.
+    if (other.isZero()) return PowiainaNum.ONE; // x^0 = 1 for every x, including NaN and +-Infinity
+    if (this.eq(1)) return PowiainaNum.ONE; // 1^y = 1 for every y, including NaN
+    if (this.isNaN() || other.isNaN()) return PowiainaNum.NaN;
+
+    if (!other.isFinite()) {
+      // +-Infinity exponent: the result is always positive and depends only on
+      // whether |base| is greater than, equal to, or less than 1.
+      if (this.abs().eq(1)) return PowiainaNum.ONE; // (-1)^+-Infinity = 1
+      return this.abs().gt(1) === other.ispos()
+        ? PowiainaNum.POSITIVE_INFINITY
+        : PowiainaNum.ZERO;
+    }
 
     if (this.eq(10)) return other.pow10();
     if (other.isneg()) return this.pow(other.neg()).rec();
+
+    if (!this.isFinite()) {
+      // +-Infinity base with a finite, positive exponent.
+      if (this.ispos()) return this; // (+Infinity)^y = +Infinity
+      // (-Infinity)^y keeps its sign only for odd integer y.
+      return other.isInt() && other.mod(2).eq(1)
+        ? PowiainaNum.NEGATIVE_INFINITY
+        : PowiainaNum.POSITIVE_INFINITY;
+    }
+
     if (this.isneg()) {
       if (!other.isInt()) {
-        if (other.small) {
-          if (other.rec().div(2).eq(1)) {
-            return this.neg().pow(other).neg();
-          }
-        }
+        // A negative base raised to a non-integer exponent has no real value.
+        // (The integer-exponent case is handled below and keeps the sign for odd y.)
         if (PowiainaNum.throwErrorOnResultNaN) throw new Error("NaN");
         return PowiainaNum.NaN;
       }
-      let r = this.abs().pow(other);
-      r.sign = (function () {
-        let a = other.mod(2).round();
-        if (a.eq(0) || a.eq(2)) return 1;
-        return -1;
-      })();
+      // (negative)^y is positive for even y and negative for odd y.
+      // Do NOT write to the result in place here: abs().pow(other) can hand back
+      // the shared PowiainaNum.ONE singleton (pow returns it whenever the base is
+      // 1), so assigning `.sign` used to corrupt that global constant - after a
+      // single (-1)^3 call, every later `1`, `x^0` or `P.ONE` came back as -1.
+      const magnitude = this.abs().pow(other);
+      const yMod2 = other.mod(2).round();
+      const yIsEven = yMod2.eq(0) || yMod2.eq(2);
 
-      return r;
+      return yIsEven ? magnitude : magnitude.neg();
     }
     let a = this.toNumber();
     let b = other.toNumber();
@@ -4248,6 +4271,10 @@ export default class PowiainaNum implements IPowiainaNum {
         expans: item.expans,
         megota: item.megota,
         repeat: item.repeat,
+        // `valuereplaced` records that an operator's arrow/expans was promoted to
+        // Infinity by normalize(); dropping it here silently corrupted every copy
+        // made through this constructor or clone().
+        valuereplaced: item.valuereplaced,
       };
     });
     this.small = powlikeObject.small;
