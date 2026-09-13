@@ -17,9 +17,9 @@ const config: Config = {
         case "esm":
           return "PowiainaNum.esm.js";
         case "cjs":
-          return context.minify
-            ? "PowiainaNum.min.cjs.js"
-            : "PowiainaNum.cjs.js";
+          // Must end in `.cjs`: package.json sets "type": "module", so a `.js`
+          // file is treated as ESM by Node and `require()` silently returns {}.
+          return context.minify ? "PowiainaNum.min.cjs" : "PowiainaNum.cjs";
         default:
           return defaultFileName;
       }
